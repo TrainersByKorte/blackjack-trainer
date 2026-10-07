@@ -160,13 +160,13 @@ const eur = (v) => (v % 1 === 0 ? eurFmt0 : eurFmt2).format(v) + " €";
 const LEVEL_UP_AFTER = 10;
 const level = (right) => right < LEVEL_UP_AFTER ? 1 : 2;
 
-function betFor(table, right) {
+function betFor({ minBet, maxBet }, right) {
   if (level(right) === 1) {
     // Stufe 1: glatte Einsätze 10, 20, 30 … bis 100
-    return rnd(Math.floor(Math.max(table.minBet, 10) / 10), Math.floor(Math.min(table.maxBet, 100) / 10)) * 10;
+    return rnd(Math.floor(Math.max(minBet, 10) / 10), Math.floor(Math.min(maxBet, 100) / 10)) * 10;
   }
   // Stufe 2: krumme Einsätze in 5er-Schritten (115, 255 …) von 105 bis 1000; am 5€-Tisch 15 bis 95
-  const lo = table.maxBet > 100 ? 105 : 15, hi = Math.min(table.maxBet, 1000);
+  const lo = maxBet > 100 ? 105 : 15, hi = Math.min(maxBet, 1000);
   let b;
   do { b = rnd(lo / 5, Math.floor(hi / 5)) * 5; } while (b % 10 === 0 && rnd(0, 3) !== 0);
   return b;
@@ -272,8 +272,9 @@ function jackpotQuestion(table) {
 
 /* ---------- Black Jack 3:2 ---------- */
 
-function blackjackQuestion(table, right) {
-  const bet = betFor(table, right), win = bet * 1.5;
+/** Black Jack Auszahlung (Hauptmenü, tischunabhängig): Einsätze 10 bis 1000 je nach Stufe. */
+function blackjackQuestion(right) {
+  const bet = betFor({ minBet: 10, maxBet: 1000 }, right), win = bet * 1.5;
   return {
     header: `Black Jack! Einsatz ${eur(bet)}: Wie hoch ist die Auszahlung?`,
     cards: [], answer: win, allowNoWin: true,
@@ -431,6 +432,11 @@ function homeScreen() {
     <p>Tisch wählen</p>
     ${Object.entries(TABLES).map(([k, t]) => `<button class="btn" data-go="#/t/${k}">${t.title}</button>`).join("")}
     <div class="spacer"></div>
+    <p>Übungen für alle Tische</p>
+    <button class="btn" data-go="#/blackjack">Black Jack Auszahlung</button>
+    <button class="btn" data-go="#/cards">Karten lesen</button>
+    <button class="btn" data-go="#/timed">Karten lesen auf Zeit (${TIMED_SECONDS} s)</button>
+    <div class="spacer"></div>
     <button class="btn" data-go="#/stats">Statistik</button>`;
 }
 
@@ -464,14 +470,12 @@ function menuScreen(k) {
     <h2>${t.title}</h2>
     <button class="btn" data-go="${base}/jack">Silver / Gold / Super Jack</button>
     <button class="btn" data-go="${base}/jackpot">Jackpots</button>
-    <button class="btn" data-go="${base}/blackjack">Black Jack</button>
     <button class="btn" data-go="${base}/pairs">Super Pairs</button>
-    <button class="btn" data-go="${base}/cards">Karten lesen</button>
-    <button class="btn" data-go="${base}/timed">Karten lesen auf Zeit (${TIMED_SECONDS} s)</button>`;
+`;
 }
 
 /** Auszahlungs-Übung; next(right) richtet die Schwierigkeit nach den richtigen Antworten dieser Runde. */
-function exerciseScreen(k, title, jackpotMode, next) {
+function exerciseScreen(back, title, jackpotMode, next) {
   let right = 0, total = 0, streak = 0, q = next(0), feedback = null, wasRight = false;
 
   function submit(given, progressive) {
@@ -493,7 +497,7 @@ function exerciseScreen(k, title, jackpotMode, next) {
 
   function render() {
     app.innerHTML = `
-      ${backBtn("← Zurück", `#/t/${k}`)}
+      ${backBtn("← Zurück", back)}
       <h3>${esc(title)}</h3>
       <p>Richtig: ${right} / ${total}${streak > 1 ? `   ·   Serie: ${streak}` : ""}   ·   Stufe ${level(right)}</p>
       <p style="font-size:18px">${esc(q.header)}</p>
@@ -513,17 +517,25 @@ function exerciseScreen(k, title, jackpotMode, next) {
       const check = () => { const v = parse(input.value); if (v !== null) submit(v, false); };
       $("check").onclick = check;
       input.onkeydown = (e) => { if (e.key === "Enter") check(); };
+      input.oninput = () => {
+        // Sobald die richtige Auszahlung dasteht, automatisch prüfen
+        const v = parse(input.value);
+        if (v !== null && !q.progressive && Math.abs(v - q.answer) < 0.001) return submit(v, false);
+        // sonst nach unten scrollen, damit Prüfen sichtbar bleibt
+        $("check").scrollIntoView({ block: "nearest", behavior: "smooth" });
+      };
       if ($("nowin")) $("nowin").onclick = () => submit(0, false);
       if ($("prog")) $("prog").onclick = () => submit(0, true);
     } else {
       $("next").onclick = () => { q = next(right); feedback = null; render(); };
+      $("next").scrollIntoView({ block: "end", behavior: "smooth" });
     }
   }
   render();
 }
 
 /** Karten lesen: zufällig Gast- oder Bank-Hand. timed: so viele wie möglich in 30 s, am Ende das Ergebnis. */
-function cardReadingScreen(k, timed) {
+function cardReadingScreen(timed) {
   const title = timed ? `Karten lesen auf Zeit (${TIMED_SECONDS} s)` : "Karten lesen";
   let reading = cardReading(), input = "", feedback = null, wasRight = false;
   let right = 0, total = 0, streak = 0, shownAt = Date.now();
@@ -570,6 +582,7 @@ function cardReadingScreen(k, timed) {
 
   function render() {
     let body;
+    const $ = (id) => document.getElementById(id), $next = () => $("next");
     if (phase === 0) {
       const rec = Stats.get().bestTimed;
       body = `
@@ -604,8 +617,9 @@ function cardReadingScreen(k, timed) {
         <p class="feedback ${wasRight ? "ok" : "bad"}">${esc(feedback)}</p>
         <button class="btn" id="next">Weiter</button>`);
     }
-    app.innerHTML = `${backBtn("← Zurück", `#/t/${k}`)}<h3>${title}</h3>${body}`;
-    const $ = (id) => document.getElementById(id);
+    app.innerHTML = `${backBtn("← Zurück", "#/")}<h3>${title}</h3>${body}`;
+    // Nach dem Prüfen (ohne Zeitmodus) zur Lösung und zum Weiter-Knopf scrollen
+    if ($next()) $next().scrollIntoView({ block: "end", behavior: "smooth" });
     if ($("start")) $("start").onclick = start;
     if ($("next")) $("next").onclick = () => { nextReading(); feedback = null; render(); };
     if ($("check")) $("check").onclick = submit;
@@ -615,7 +629,10 @@ function cardReadingScreen(k, timed) {
         const key = b.dataset.key;
         if (key === "⌫") input = input.slice(0, -1);
         else if (input.length < 5) input += key;
+        // Sobald der richtige Wert dasteht, automatisch prüfen
+        if (input && isRightReading(input, reading.cards, reading.bank)) return submit();
         updateDisplay();
+        $("check").scrollIntoView({ block: "nearest", behavior: "smooth" });
       });
       // Ass + Zehner wird nicht als 21 angesagt, sondern mit Namen
       app.querySelectorAll("[data-name]").forEach((b) => b.onclick = () => { input = b.dataset.name; submit(); });
@@ -633,14 +650,14 @@ function route() {
   const k = parts[1], t = TABLES[k];
   window.scrollTo(0, 0);
   if (parts[0] === "stats") return statsScreen();
+  if (parts[0] === "blackjack") return exerciseScreen("#/", "Black Jack Auszahlung", false, (r) => blackjackQuestion(r));
+  if (parts[0] === "cards") return cardReadingScreen(false);
+  if (parts[0] === "timed") return cardReadingScreen(true);
   if (parts[0] !== "t" || !t) return homeScreen();
   switch (parts[2]) {
-    case "jack": return exerciseScreen(k, `Silver / Gold / Super Jack – ${t.title}`, false, (r) => jackQuestion(t, r));
-    case "jackpot": return exerciseScreen(k, `Jackpots – ${t.title}`, true, () => jackpotQuestion(t));
-    case "blackjack": return exerciseScreen(k, `Black Jack – ${t.title}`, false, (r) => blackjackQuestion(t, r));
-    case "pairs": return exerciseScreen(k, `Super Pairs – ${t.title}`, false, () => pairQuestion(t));
-    case "cards": return cardReadingScreen(k, false);
-    case "timed": return cardReadingScreen(k, true);
+    case "jack": return exerciseScreen(`#/t/${k}`, `Silver / Gold / Super Jack – ${t.title}`, false, (r) => jackQuestion(t, r));
+    case "jackpot": return exerciseScreen(`#/t/${k}`, `Jackpots – ${t.title}`, true, () => jackpotQuestion(t));
+    case "pairs": return exerciseScreen(`#/t/${k}`, `Super Pairs – ${t.title}`, false, () => pairQuestion(t));
     default: return menuScreen(k);
   }
 }
