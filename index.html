@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Black Jack Trainer</title>
+<meta name="theme-color" content="#2A9053">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BJ Trainer">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<style>
+  :root {
+    --green: #2A9053;
+    --blue: #022652;
+    --right: #B9F6CA;
+    --wrong: #FFCDD2;
+    --red-suit: #C62828;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background: var(--green);
+    color: #fff;
+    font: 17px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Hintergrundbild unten in voller Breite, oben weich ins Tischgrün auslaufend */
+  #bg {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 0; pointer-events: none;
+    aspect-ratio: 1 / 1; max-height: 100vh;
+    background: url(background.jpg) center bottom / cover no-repeat;
+  }
+  #bg::after {
+    content: ""; position: absolute; left: 0; right: 0; top: 0; height: 160px;
+    background: linear-gradient(var(--green), transparent);
+  }
+  main {
+    position: relative; z-index: 1;
+    max-width: 520px; margin: 0 auto;
+    padding: calc(16px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom));
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  h1 { margin: 8px 0; font-size: 30px; text-align: center; color: #000; }
+  h2 { margin: 0; font-size: 26px; }
+  h3 { margin: 0; font-size: 20px; }
+  p { margin: 0; }
+  .small { font-size: 13px; }
+  /* bleibt lesbar, wenn Text über dem Logo im Hintergrund liegt */
+  main p, main h3 { text-shadow: 0 1px 3px rgba(0, 0, 0, .9), 0 0 8px rgba(0, 0, 0, .6); }
+  button { font: inherit; cursor: pointer; }
+  .btn {
+    width: 100%; min-height: 48px; padding: 10px 16px;
+    background: var(--blue); color: #fff; border: 0; border-radius: 24px;
+    font-weight: 500;
+  }
+  .btn:active { filter: brightness(1.4); }
+  .btn.secondary { background: rgba(2, 38, 82, .3); border: 2px solid var(--blue); }
+  .back {
+    align-self: flex-start; background: none; border: 0; color: #fff;
+    padding: 8px 4px; font-weight: 500;
+  }
+  .spacer { height: 8px; }
+  .box { background: rgba(0, 0, 0, .25); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .row { display: flex; justify-content: space-between; gap: 12px; }
+  .row b { white-space: nowrap; }
+  .feedback { font-size: 18px; font-weight: 600; white-space: pre-line; }
+  .ok { color: var(--right); }
+  .bad { color: var(--wrong); }
+  input[type=text] {
+    width: 100%; font: inherit; font-size: 20px; color: #fff;
+    background: rgba(0, 0, 0, .15); border: 1px solid rgba(255, 255, 255, .7); border-radius: 6px;
+    padding: 14px 12px;
+  }
+  input[type=text]:focus { outline: none; border: 2px solid #fff; }
+  input::placeholder { color: rgba(255, 255, 255, .55); }
+  /* Karten */
+  .cards { display: flex; gap: 10px; flex-wrap: wrap; }
+  .card {
+    background: #fff; color: #000; border: 1px solid #999; border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, .35); font-weight: 700;
+  }
+  .card.red { color: var(--red-suit); }
+  .card.big { font-size: 30px; padding: 22px 16px; }
+  .card.small { width: 54px; height: 74px; font-size: 18px; padding: 5px; border-radius: 6px; }
+  .cascade { position: relative; }
+  .cascade .card { position: absolute; width: 76px; height: 100px; font-size: 20px; padding: 6px; }
+  .bank { display: flex; gap: 6px; flex-wrap: wrap; }
+  /* Zifferntastatur */
+  .display {
+    background: rgba(0, 0, 0, .25); border-radius: 8px; padding: 12px;
+    text-align: center; font-size: 28px; font-weight: 700; min-height: 62px;
+  }
+  .display.empty { color: rgba(255, 255, 255, .5); }
+  .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .pad button {
+    height: 56px; background: var(--blue); color: #fff; border: 0; border-radius: 8px;
+    font-size: 24px; font-weight: 700; touch-action: manipulation;
+  }
+  .pad button:active { filter: brightness(1.5); }
+  dialog {
+    background: #1E6B3E; color: #fff; border: 0; border-radius: 16px; padding: 20px; max-width: 320px;
+  }
+  dialog::backdrop { background: rgba(0, 0, 0, .5); }
+  dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+</style>
+</head>
+<body>
+<div id="bg"></div>
+<main id="app"></main>
+<dialog id="confirm">
+  <h3>Statistik zurücksetzen?</h3>
+  <p style="margin-top:8px">Alle Zahlen werden auf null gesetzt.</p>
+  <div class="actions">
+    <button class="back" value="no" onclick="this.closest('dialog').close('no')">Abbrechen</button>
+    <button class="back" onclick="this.closest('dialog').close('yes')">Zurücksetzen</button>
+  </div>
+</dialog>
+<script>
+"use strict";
+
+/* ---------- Grundlagen: Karten, Tische, Quoten (wie Payouts.kt der Android-App) ---------- */
+
+const SUITS = [
+  { symbol: "♠", red: false }, { symbol: "♥", red: true },
+  { symbol: "♦", red: true }, { symbol: "♣", red: false },
+];
+const HEARTS = SUITS[1], SPADES = SUITS[0];
+
+const rnd = (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1)); // lo..hi inklusive
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const shuffle = (arr) => { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = rnd(0, i); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+/** rank: 2..10, 11 = Bube, 12 = Dame, 13 = König, 14 = Ass */
+const card = (rank, suit) => ({ rank, suit });
+const randomSuit = () => pick(SUITS);
+const randomCard = () => card(rnd(2, 14), randomSuit());
+const label = (c) => ({ 11: "B", 12: "D", 13: "K", 14: "A" }[c.rank] || String(c.rank)) + c.suit.symbol;
+const bjValue = (c) => c.rank === 14 ? 11 : c.rank >= 10 ? 10 : c.rank;
+
+const TABLES = {
+  5: { title: "5€ - Tisch", minBet: 5, maxBet: 100, jackpotChip: 2.5 },
+  10: { title: "10€ - Tisch", minBet: 10, maxBet: 500, jackpotChip: 5 },
+  20: { title: "20€ - Tisch", minBet: 20, maxBet: 1000, jackpotChip: 5 },
+};
+
+const eurFmt0 = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 0 });
+const eurFmt2 = new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const eur = (v) => (v % 1 === 0 ? eurFmt0 : eurFmt2).format(v) + " €";
+
+/** Ab so vielen richtigen Antworten in einer Runde werden die Einsätze größer und krumm. */
+const LEVEL_UP_AFTER = 10;
+const level = (right) => right < LEVEL_UP_AFTER ? 1 : 2;
+
+function betFor(table, right) {
+  if (level(right) === 1) {
+    // Stufe 1: glatte Einsätze 10, 20, 30 … bis 100
+    return rnd(Math.floor(Math.max(table.minBet, 10) / 10), Math.floor(Math.min(table.maxBet, 100) / 10)) * 10;
+  }
+  // Stufe 2: krumme Einsätze in 5er-Schritten (115, 255 …) von 105 bis 1000; am 5€-Tisch 15 bis 95
+  const lo = table.maxBet > 100 ? 105 : 15, hi = Math.min(table.maxBet, 1000);
+  let b;
+  do { b = rnd(lo / 5, Math.floor(hi / 5)) * 5; } while (b % 10 === 0 && rnd(0, 3) !== 0);
+  return b;
+}
+
+/* ---------- Silver / Gold / Super Jack ---------- */
+
+const JACKS = [
+  { label: "Silver Jack", quote: 19 }, { label: "Gold Jack", quote: 77 }, { label: "Super Jack", quote: 300 },
+];
+
+function randomJackCards(type) {
+  const ten = rnd(10, 13);
+  let s1, s2;
+  if (type === 2) { s1 = s2 = HEARTS; }
+  else if (type === 1) { let s = randomSuit(); if (s === HEARTS) s = SPADES; s1 = s2 = s; }
+  else { s1 = randomSuit(); do { s2 = randomSuit(); } while (s2 === s1); }
+  return shuffle([card(14, s1), card(ten, s2)]);
+}
+
+function jackQuestion(table, right) {
+  const hand = rnd(0, 2);
+  // Stufe 1: nur eine Linie gesetzt; ab Stufe 2 auch kombiniert (mindestens eine Linie)
+  let lines;
+  if (level(right) === 1) lines = [hand];
+  else do { lines = [0, 1, 2].filter(() => Math.random() < .5); } while (!lines.length);
+  // Super-Hand gewinnt auch Gold und Silver, Gold-Hand auch Silver (separat ausgezahlt)
+  const wins = lines.filter((l) => l <= hand);
+  const bet = betFor(table, right);
+  const total = wins.reduce((s, l) => s + bet * JACKS[l].quote, 0);
+  const detail = wins.length ? wins.map((l) => `${JACKS[l].label} ${JACKS[l].quote}:1 × ${eur(bet)} = ${eur(bet * JACKS[l].quote)}`).join("\n")
+    : "Keine der gesetzten Linien gewinnt.";
+  return {
+    header: `Je ${eur(bet)} auf: ${lines.map((l) => JACKS[l].label).join(" + ")}. Wie hoch ist die Auszahlung insgesamt?`,
+    cards: randomJackCards(hand), answer: total, allowNoWin: true,
+    explanation: `Hand: ${JACKS[hand].label}\n${detail}\nGesamt: ${eur(total)}`,
+  };
+}
+
+/* ---------- Jackpots ---------- */
+
+const JP = {
+  NONE: { label: "Kein Gewinn", quote: 0 },
+  FLUSH: { label: "Flush", quote: 3 },
+  STRAIGHT: { label: "Straight", quote: 7 },
+  DRILLING: { label: "Drilling (offsuit)", quote: 20 },
+  STRAIGHT_FLUSH: { label: "Straight Flush", quote: 25 },
+  DRILLING_SUITED: { label: "Drilling (suited)", quote: 125 },
+  PROGRESSIVE: { label: "Drilling Ass/König (suited)", quote: null },
+};
+
+function evaluateJackpot(cards) {
+  const ranks = cards.map((c) => c.rank).sort((a, b) => a - b);
+  const sameSuit = new Set(cards.map((c) => c.suit)).size === 1;
+  const distinct = new Set(ranks).size;
+  if (distinct === 1) return !sameSuit ? JP.DRILLING : ranks[0] >= 13 ? JP.PROGRESSIVE : JP.DRILLING_SUITED;
+  // A-2-3 und D-K-A zählen als Straight (K-A-2 nicht)
+  const straight = distinct === 3 && (ranks[2] - ranks[0] === 2 || ranks.join() === "2,3,14");
+  if (straight && sameSuit) return JP.STRAIGHT_FLUSH;
+  if (straight) return JP.STRAIGHT;
+  if (sameSuit) return JP.FLUSH;
+  return JP.NONE;
+}
+
+/** Erzeugt gezielt eine Hand des gewünschten Typs (Mehrfach-Deck, daher Drillinge möglich). */
+function randomJackpotCards(target) {
+  for (;;) {
+    let cards;
+    if (target === JP.DRILLING || target === JP.DRILLING_SUITED || target === JP.PROGRESSIVE) {
+      const rank = target === JP.PROGRESSIVE ? pick([13, 14]) : rnd(2, 14);
+      const s = randomSuit();
+      cards = [0, 1, 2].map(() => card(rank, target === JP.DRILLING ? randomSuit() : s));
+    } else if (target === JP.STRAIGHT || target === JP.STRAIGHT_FLUSH) {
+      const start = rnd(1, 12), s = randomSuit();
+      cards = [start, start + 1, start + 2].map((r) => card(r === 1 ? 14 : r, target === JP.STRAIGHT_FLUSH ? s : randomSuit()));
+    } else if (target === JP.FLUSH) {
+      const s = randomSuit();
+      cards = [0, 1, 2].map(() => card(rnd(2, 14), s));
+    } else cards = [0, 1, 2].map(randomCard);
+    if (evaluateJackpot(cards) !== target) continue;
+    // Straights der Reihe nach auslegen (9, 10, Bube; A-2-3 mit dem Ass vorne)
+    if (target === JP.STRAIGHT || target === JP.STRAIGHT_FLUSH) {
+      const r = cards.map((c) => c.rank);
+      const key = r.includes(2) && r.includes(14) ? (c) => (c.rank === 14 ? 1 : c.rank) : (c) => c.rank;
+      return [...cards].sort((a, b) => key(a) - key(b));
+    }
+    return shuffle(cards);
+  }
+}
+
+function jackpotQuestion(table) {
+  const hand = pick(Object.values(JP));
+  const chip = table.jackpotChip;
+  return {
+    header: `Jackpot-Jeton ${eur(chip)}. Karte 1–2: Gast, Karte 3: Dealer.`,
+    cards: randomJackpotCards(hand), answer: (hand.quote || 0) * chip, allowNoWin: true,
+    progressive: hand === JP.PROGRESSIVE,
+    explanation: hand === JP.PROGRESSIVE ? "Drilling Ass/König (suited) = progressiver Jackpot"
+      : hand === JP.NONE ? "Kein Gewinn, der Jeton ist verloren"
+      : `${hand.label} ${hand.quote}:1 × ${eur(chip)} = ${eur(hand.quote * chip)}`,
+  };
+}
+
+/* ---------- Black Jack 3:2 ---------- */
+
+function blackjackQuestion(table, right) {
+  const bet = betFor(table, right), win = bet * 1.5;
+  return {
+    header: `Black Jack! Einsatz ${eur(bet)}: Wie hoch ist die Auszahlung?`,
+    cards: [], answer: win, allowNoWin: true,
+    explanation: `Black Jack 3:2 × ${eur(bet)} = ${eur(win)}`,
+  };
+}
+
+/* ---------- Super Pairs ---------- */
+
+const PAIRS = [
+  { label: "Mixed Pair", quote: 5 }, { label: "Colored Pair", quote: 15 },
+  { label: "Identical Pair", quote: 25 }, { label: "Super Pair", quote: 77 },
+];
+
+/** "Spielfarbe" = Rot/Schwarz, "Symbol" = Herz/Karo/Pik/Kreuz; gleicher Wert = gleicher Rang. */
+function evaluatePair(a, b) {
+  if (a.rank !== b.rank) return null;
+  if (a.suit === b.suit) return a.rank === 7 && a.suit === HEARTS ? PAIRS[3] : PAIRS[2];
+  return a.suit.red === b.suit.red ? PAIRS[1] : PAIRS[0];
+}
+
+function randomPairCards(target) {
+  if (target === PAIRS[3]) return [card(7, HEARTS), card(7, HEARTS)];
+  for (;;) {
+    const rank = rnd(2, 14), cards = [card(rank, randomSuit()), card(rank, randomSuit())];
+    if (evaluatePair(...cards) === target) return cards;
+  }
+}
+
+/** Nur echte Paare; Einsatz je Tisch auf das Minimum begrenzt (5 €, 10 €, 20 €). */
+function pairQuestion(table) {
+  const type = pick(PAIRS), bet = table.minBet, win = bet * type.quote;
+  return {
+    header: `Super Pairs: Einsatz ${eur(bet)}. Wie hoch ist die Auszahlung?`,
+    cards: randomPairCards(type), answer: win, allowNoWin: false,
+    explanation: `${type.label} ${type.quote}:1 × ${eur(bet)} = ${eur(win)}`,
+  };
+}
+
+const answerText = (q) => q.progressive ? "Progressiver Jackpot" : q.answer === 0 && q.allowNoWin ? "Kein Gewinn" : eur(q.answer);
+
+/* ---------- Karten lesen ---------- */
+
+/** [bester Wert, soft?]: Ass zählt 11, solange die Hand dadurch nicht über 21 geht. */
+function handTotals(cards) {
+  const hard = cards.reduce((s, c) => s + (c.rank === 14 ? 1 : bjValue(c)), 0);
+  const soft = cards.some((c) => c.rank === 14) && hard + 10 <= 21;
+  return [soft ? hard + 10 : hard, soft];
+}
+
+/** Gast: 2 bis 5 Karten; vor der letzten Karte war er noch unter 21, kann sich also bis 30 überkaufen. */
+function guestHand() {
+  const n = rnd(2, 5);
+  for (;;) {
+    const cards = [randomCard(), randomCard()];
+    while (cards.length < n && handTotals(cards)[0] < 21) cards.push(randomCard());
+    if (cards.length === n) return cards;
+  }
+}
+
+/** Bank: zieht bis mindestens 17 (also höchstens 26); manchmal wird sie mitten im Ziehen gezeigt. */
+function bankHand() {
+  const cards = [randomCard(), randomCard()];
+  while (handTotals(cards)[0] < 17) cards.push(randomCard());
+  return cards.length > 2 && rnd(0, 2) === 0 ? cards.slice(0, rnd(2, cards.length - 1)) : cards;
+}
+
+/** Je Aufgabe entweder eine Gast- oder eine Bank-Hand. */
+const cardReading = () => Math.random() < .5 ? { cards: bankHand(), bank: true } : { cards: guestHand(), bank: false };
+
+/** Ansage "9/19", solange ein Ass noch 1 oder 11 zählen kann. Ausnahmen: 21 bleibt 21, die Bank steht ab 17. */
+function spoken(cards, bank) {
+  const [best, soft] = handTotals(cards);
+  return soft && best < 21 && !(bank && best >= 17) ? `${best - 10}/${best}` : String(best);
+}
+
+/** Eingabe "9/19" (auch "9-19", "9 19") oder eine Zahl; bei soft Hand ist das Paar immer richtig. */
+function isRightReading(input, cards, bank) {
+  const nums = (input.match(/\d+/g) || []).map(Number);
+  const [best, soft] = handTotals(cards);
+  if (nums.length === 1) return spoken(cards, bank) === String(nums[0]);
+  if (nums.length === 2) return soft && new Set(nums).size === 2 && nums.includes(best - 10) && nums.includes(best);
+  return false;
+}
+
+function describeHand(cards, bank) {
+  const best = handTotals(cards)[0];
+  const extra = cards.length === 2 && best === 21 ? " (Black Jack)" : best > 21 ? " (überkauft)" : "";
+  return cards.map(label).join(" + ") + " = " + spoken(cards, bank) + extra;
+}
+
+/* ---------- Statistik (pro Gerät im Browser gespeichert) ---------- */
+
+const Stats = {
+  _data() { try { return JSON.parse(localStorage.getItem("stats")) || {}; } catch { return {}; } },
+  _save(d) { try { localStorage.setItem("stats", JSON.stringify(d)); } catch {} },
+  get() { const d = this._data(); return { total: d.total || 0, right: d.right || 0, bestRun: d.bestRun || 0, bestTimeMs: d.bestTimeMs || 0, bestTimed: d.bestTimed || 0 }; },
+  record(ok) { const d = this.get(); d.total++; if (ok) d.right++; this._save(d); },
+  recordRun(n) { const d = this.get(); if (n > d.bestRun) { d.bestRun = n; this._save(d); } },
+  recordTime(ms) { const d = this.get(); if (!d.bestTimeMs || ms < d.bestTimeMs) { d.bestTimeMs = ms; this._save(d); } },
+  recordTimed(n) { const d = this.get(); if (n > d.bestTimed) { d.bestTimed = n; this._save(d); } },
+  reset() { this._save({}); },
+};
+
+/* ---------- Oberfläche ---------- */
+
+const TIMED_SECONDS = 30;
+const app = document.getElementById("app");
+const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+let cleanup = null; // räumt Timer der aktuellen Seite auf
+
+function cardHtml(c, cls) { return `<div class="card ${cls}${c.suit.red ? " red" : ""}">${label(c)}</div>`; }
+
+/** Gast-Karten: erste Karte vor der Box, jede weitere leicht nach unten und rechts versetzt. */
+function cascadeHtml(cards) {
+  const w = 76 + 46 * (cards.length - 1), h = 100 + 38 * (cards.length - 1);
+  return `<div class="cascade" style="width:${w}px;height:${h}px">` +
+    cards.map((c, i) => `<div class="card${c.suit.red ? " red" : ""}" style="left:${46 * i}px;top:${38 * i}px">${label(c)}</div>`).join("") +
+    `</div>`;
+}
+
+function go(hash) { location.hash = hash; }
+const backBtn = (text, hash) => `<button class="back" data-go="${hash}">${text}</button>`;
+
+app.addEventListener("click", (e) => {
+  const t = e.target.closest("[data-go]");
+  if (t) go(t.dataset.go);
+});
+
+function homeScreen() {
+  app.innerHTML = `
+    <h1>Black Jack Trainer</h1>
+    <p>Tisch wählen</p>
+    ${Object.entries(TABLES).map(([k, t]) => `<button class="btn" data-go="#/t/${k}">${t.title}</button>`).join("")}
+    <div class="spacer"></div>
+    <button class="btn" data-go="#/stats">Statistik</button>`;
+}
+
+function statsScreen() {
+  const s = Stats.get();
+  const sec = (ms) => (ms / 1000).toFixed(1).replace(".", ",") + " s";
+  app.innerHTML = `
+    ${backBtn("← Zurück", "#/")}
+    <h2>Statistik</h2>
+    <div class="box">
+      <div class="row"><span>Durchgänge (Aufgaben)</span><b>${s.total}</b></div>
+      <div class="row"><span>Richtige Antworten</span><b>${s.right}${s.total ? ` (${Math.floor(s.right * 100 / s.total)} %)` : ""}</b></div>
+      <div class="row"><span>Falsche Antworten</span><b>${s.total - s.right}</b></div>
+      <div class="row"><span>Bester Durchlauf (richtig in Folge)</span><b>${s.bestRun}</b></div>
+      <div class="row"><span>Karten lesen auf Zeit – Rekord</span><b>${s.bestTimed} in ${TIMED_SECONDS} s</b></div>
+      <div class="row"><span>Karten lesen – beste Zeit</span><b>${s.bestTimeMs ? sec(s.bestTimeMs) : "–"}</b></div>
+    </div>
+    <button class="btn secondary" id="reset">Statistik zurücksetzen</button>`;
+  const dlg = document.getElementById("confirm");
+  document.getElementById("reset").onclick = () => {
+    dlg.returnValue = "";
+    dlg.onclose = () => { if (dlg.returnValue === "yes") { Stats.reset(); statsScreen(); } };
+    dlg.showModal();
+  };
+}
+
+function menuScreen(k) {
+  const t = TABLES[k], base = `#/t/${k}`;
+  app.innerHTML = `
+    ${backBtn("← Tisch wechseln", "#/")}
+    <h2>${t.title}</h2>
+    <button class="btn" data-go="${base}/jack">Silver / Gold / Super Jack</button>
+    <button class="btn" data-go="${base}/jackpot">Jackpots</button>
+    <button class="btn" data-go="${base}/blackjack">Black Jack (3:2)</button>
+    <button class="btn" data-go="${base}/pairs">Super Pairs</button>
+    <button class="btn" data-go="${base}/cards">Karten lesen</button>
+    <button class="btn" data-go="${base}/timed">Karten lesen auf Zeit (${TIMED_SECONDS} s)</button>`;
+}
+
+/** Auszahlungs-Übung; next(right) richtet die Schwierigkeit nach den richtigen Antworten dieser Runde. */
+function exerciseScreen(k, title, jackpotMode, next) {
+  let right = 0, total = 0, streak = 0, q = next(0), feedback = null, wasRight = false;
+
+  function submit(given, progressive) {
+    const ok = q.progressive ? progressive : !progressive && Math.abs(given - q.answer) < 0.001;
+    total++; Stats.record(ok);
+    if (ok) { right++; streak++; Stats.recordRun(streak); } else streak = 0;
+    wasRight = ok;
+    feedback = ok ? "Richtig! " + q.explanation : `Falsch. Richtig ist: ${answerText(q)}\n${q.explanation}`;
+    render();
+  }
+
+  /** "172,5", "172.50" oder "1.000" (Tausenderpunkt) */
+  function parse(s) {
+    s = s.trim().replace(/\s|€/g, "");
+    if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) s = s.replace(/\./g, "");
+    const v = Number(s.replace(",", "."));
+    return s && !isNaN(v) ? v : null;
+  }
+
+  function render() {
+    app.innerHTML = `
+      ${backBtn("← Zurück", `#/t/${k}`)}
+      <h3>${esc(title)}</h3>
+      <p>Richtig: ${right} / ${total}${streak > 1 ? `   ·   Serie: ${streak}` : ""}   ·   Stufe ${level(right)}</p>
+      <p style="font-size:18px">${esc(q.header)}</p>
+      ${q.cards.length ? `<div class="cards">${q.cards.map((c) => cardHtml(c, "big")).join("")}</div>` : ""}
+      ${feedback === null ? `
+        <input type="text" id="answer" inputmode="decimal" autocomplete="off" placeholder="Auszahlung in €">
+        <button class="btn" id="check">Prüfen</button>
+        ${q.allowNoWin ? `<button class="btn secondary" id="nowin">Kein Gewinn</button>` : ""}
+        ${jackpotMode ? `<button class="btn secondary" id="prog">Progressiver Jackpot</button>` : ""}
+      ` : `
+        <p class="feedback ${wasRight ? "ok" : "bad"}">${esc(feedback)}</p>
+        <button class="btn" id="next">Weiter</button>
+      `}`;
+    const $ = (id) => document.getElementById(id);
+    if (feedback === null) {
+      const input = $("answer");
+      const check = () => { const v = parse(input.value); if (v !== null) submit(v, false); };
+      $("check").onclick = check;
+      input.onkeydown = (e) => { if (e.key === "Enter") check(); };
+      if ($("nowin")) $("nowin").onclick = () => submit(0, false);
+      if ($("prog")) $("prog").onclick = () => submit(0, true);
+    } else {
+      $("next").onclick = () => { q = next(right); feedback = null; render(); };
+    }
+  }
+  render();
+}
+
+/** Karten lesen: zufällig Gast- oder Bank-Hand. timed: so viele wie möglich in 30 s, am Ende das Ergebnis. */
+function cardReadingScreen(k, timed) {
+  const title = timed ? `Karten lesen auf Zeit (${TIMED_SECONDS} s)` : "Karten lesen";
+  let reading = cardReading(), input = "", feedback = null, wasRight = false;
+  let right = 0, total = 0, streak = 0, shownAt = Date.now();
+  let phase = timed ? 0 : 1; // 0 = bereit, 1 = läuft, 2 = vorbei
+  let endAt = 0, timer = null, newRecord = false;
+  cleanup = () => clearInterval(timer);
+
+  function nextReading() { reading = cardReading(); input = ""; shownAt = Date.now(); }
+
+  function start() {
+    right = total = streak = 0; feedback = null; nextReading();
+    endAt = Date.now() + TIMED_SECONDS * 1000; phase = 1;
+    timer = setInterval(() => {
+      const left = endAt - Date.now();
+      if (left <= 0) {
+        clearInterval(timer);
+        newRecord = right > Stats.get().bestTimed;
+        Stats.recordTimed(right); phase = 2; render();
+      } else {
+        const el = document.getElementById("left");
+        if (el) el.textContent = Math.ceil(left / 1000);
+      }
+    }, 100);
+    render();
+  }
+
+  function submit() {
+    if (!input) return;
+    const ok = isRightReading(input, reading.cards, reading.bank);
+    total++; Stats.record(ok);
+    if (ok) { right++; streak++; Stats.recordRun(streak); Stats.recordTime(Date.now() - shownAt); } else streak = 0;
+    wasRight = ok;
+    const solution = (reading.bank ? "Bank: " : "Gast: ") + describeHand(reading.cards, reading.bank);
+    feedback = ok ? `Richtig!\n${solution}` : `Falsch. Richtig ist: ${spoken(reading.cards, reading.bank)}\n${solution}`;
+    if (timed) nextReading();
+    render();
+  }
+
+  function updateDisplay() {
+    const d = document.getElementById("display");
+    d.textContent = input || (reading.bank ? "Wert der Bank" : "Wert des Gastes");
+    d.classList.toggle("empty", !input);
+  }
+
+  function render() {
+    let body;
+    if (phase === 0) {
+      const rec = Stats.get().bestTimed;
+      body = `
+        <p>Lies so viele Hände wie möglich in ${TIMED_SECONDS} Sekunden – mal Gast, mal Bank.</p>
+        <p>Ass als 1 oder 11: z. B. 6 + A + 2 = 9/19. Die Bank steht ab 17.</p>
+        ${rec ? `<p>Dein Rekord: ${rec} richtig</p>` : ""}
+        <button class="btn" id="start">Start</button>`;
+    } else if (phase === 2) {
+      body = `
+        <h2>Zeit abgelaufen!</h2>
+        <p style="font-size:22px">${right} von ${total} richtig</p>
+        <p class="${newRecord ? "ok" : ""}">${newRecord ? "Neuer Rekord!" : `Rekord: ${Stats.get().bestTimed} richtig`}</p>
+        ${feedback ? `<p class="feedback ${wasRight ? "ok" : "bad"}" style="font-size:16px">Letzte Hand – ${esc(feedback)}</p>` : ""}
+        <button class="btn" id="start">Nochmal</button>`;
+    } else {
+      const status = timed
+        ? `<p style="font-size:18px;font-weight:600">Noch <span id="left">${Math.ceil((endAt - Date.now()) / 1000)}</span> s   ·   Richtig: ${right} / ${total}</p>`
+        : `<p>Richtig: ${right} / ${total}${streak > 1 ? `   ·   Serie: ${streak}` : ""}</p>`;
+      const hand = reading.bank
+        ? `<p style="font-size:18px;font-weight:600">Bank</p><div class="bank">${reading.cards.map((c) => cardHtml(c, "small")).join("")}</div>`
+        : `<p style="font-size:18px;font-weight:600">Gast</p>${cascadeHtml(reading.cards)}`;
+      const entry = timed || feedback === null;
+      body = status + hand + (entry ? `
+        <div class="display" id="display"></div>
+        <div class="pad">${["1", "2", "3", "4", "5", "6", "7", "8", "9", "/", "0", "⌫"].map((key) => `<button data-key="${key}">${key}</button>`).join("")}</div>
+        <p class="small">Ass als 1 oder 11: beide Werte mit / eingeben, z. B. 9/19</p>
+        <button class="btn" id="check">Prüfen</button>
+        ${timed && feedback ? `<p class="feedback ${wasRight ? "ok" : "bad"}" style="font-size:16px">${esc(feedback.split("\n")[0])}</p>` : ""}
+      ` : `
+        <p class="feedback ${wasRight ? "ok" : "bad"}">${esc(feedback)}</p>
+        <button class="btn" id="next">Weiter</button>`);
+    }
+    app.innerHTML = `${backBtn("← Zurück", `#/t/${k}`)}<h3>${title}</h3>${body}`;
+    const $ = (id) => document.getElementById(id);
+    if ($("start")) $("start").onclick = start;
+    if ($("next")) $("next").onclick = () => { nextReading(); feedback = null; render(); };
+    if ($("check")) $("check").onclick = submit;
+    if ($("display")) {
+      updateDisplay();
+      app.querySelectorAll("[data-key]").forEach((b) => b.onclick = () => {
+        const key = b.dataset.key;
+        if (key === "⌫") input = input.slice(0, -1);
+        else if (input.length < 5) input += key;
+        updateDisplay();
+      });
+    }
+  }
+  render();
+}
+
+/* ---------- Navigation über #-Adressen (Zurück-Taste des Browsers funktioniert) ---------- */
+
+function route() {
+  if (cleanup) { cleanup(); cleanup = null; }
+  document.querySelector("dialog[open]")?.close();
+  const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+  const k = parts[1], t = TABLES[k];
+  window.scrollTo(0, 0);
+  if (parts[0] === "stats") return statsScreen();
+  if (parts[0] !== "t" || !t) return homeScreen();
+  switch (parts[2]) {
+    case "jack": return exerciseScreen(k, `Silver / Gold / Super Jack – ${t.title}`, false, (r) => jackQuestion(t, r));
+    case "jackpot": return exerciseScreen(k, `Jackpots – ${t.title}`, true, () => jackpotQuestion(t));
+    case "blackjack": return exerciseScreen(k, `Black Jack – ${t.title}`, false, (r) => blackjackQuestion(t, r));
+    case "pairs": return exerciseScreen(k, `Super Pairs – ${t.title}`, false, () => pairQuestion(t));
+    case "cards": return cardReadingScreen(k, false);
+    case "timed": return cardReadingScreen(k, true);
+    default: return menuScreen(k);
+  }
+}
+window.addEventListener("hashchange", route);
+route();
+</script>
+</body>
+</html>
