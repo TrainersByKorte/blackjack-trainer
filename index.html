@@ -100,7 +100,12 @@
     height: 56px; background: var(--blue); color: #fff; border: 0; border-radius: 8px;
     font-size: 24px; font-weight: 700; touch-action: manipulation;
   }
-  .pad button:active { filter: brightness(1.5); }
+  .names { display: flex; gap: 8px; }
+  .names button {
+    flex: 1; height: 56px; background: var(--blue); color: #fff; border: 0; border-radius: 8px;
+    font-size: 16px; font-weight: 700; touch-action: manipulation;
+  }
+  .names button:active, .pad button:active { filter: brightness(1.5); }
   dialog {
     background: #1E6B3E; color: #fff; border: 0; border-radius: 16px; padding: 20px; max-width: 320px;
   }
@@ -336,17 +341,39 @@ function bankHand() {
   return cards.length > 2 && rnd(0, 2) === 0 ? cards.slice(0, rnd(2, cards.length - 1)) : cards;
 }
 
-/** Je Aufgabe entweder eine Gast- oder eine Bank-Hand. */
-const cardReading = () => Math.random() < .5 ? { cards: bankHand(), bank: true } : { cards: guestHand(), bank: false };
+/** Je Aufgabe entweder eine Gast- oder eine Bank-Hand; Ass + Zehner kommt zufällig zu selten, daher jede fünfte gezielt. */
+function cardReading() {
+  const bank = Math.random() < .5;
+  if (rnd(0, 4) === 0) {
+    const cards = bank ? randomJackCards(rnd(0, 2)) : shuffle([card(14, randomSuit()), card(rnd(10, 13), randomSuit())]);
+    return { cards, bank };
+  }
+  return bank ? { cards: bankHand(), bank } : { cards: guestHand(), bank };
+}
+
+/**
+ * Ass + zehnwertige Karte als einzige zwei Karten: beim Gast "Black Jack", bei der Bank
+ * Super Jack (beide Herz), Gold Jack (gleiches Symbol) oder Silver Jack (verschiedene Symbole).
+ */
+function naturalName(cards, bank) {
+  if (cards.length !== 2 || !cards.some((c) => c.rank === 14) || !cards.some((c) => c.rank >= 10 && c.rank <= 13)) return null;
+  if (!bank) return "Black Jack";
+  if (cards.every((c) => c.suit === HEARTS)) return JACKS[2].label;
+  return cards[0].suit === cards[1].suit ? JACKS[1].label : JACKS[0].label;
+}
 
 /** Ansage "9/19", solange ein Ass noch 1 oder 11 zählen kann. Ausnahmen: 21 bleibt 21, die Bank steht ab 17. */
 function spoken(cards, bank) {
+  const name = naturalName(cards, bank);
+  if (name) return name;
   const [best, soft] = handTotals(cards);
   return soft && best < 21 && !(bank && best >= 17) ? `${best - 10}/${best}` : String(best);
 }
 
 /** Eingabe "9/19" (auch "9-19", "9 19") oder eine Zahl; bei soft Hand ist das Paar immer richtig. */
 function isRightReading(input, cards, bank) {
+  const name = naturalName(cards, bank);
+  if (name) return input === name;
   const nums = (input.match(/\d+/g) || []).map(Number);
   const [best, soft] = handTotals(cards);
   if (nums.length === 1) return spoken(cards, bank) === String(nums[0]);
@@ -356,7 +383,7 @@ function isRightReading(input, cards, bank) {
 
 function describeHand(cards, bank) {
   const best = handTotals(cards)[0];
-  const extra = cards.length === 2 && best === 21 ? " (Black Jack)" : best > 21 ? " (überkauft)" : "";
+  const extra = best > 21 && !naturalName(cards, bank) ? " (überkauft)" : "";
   return cards.map(label).join(" + ") + " = " + spoken(cards, bank) + extra;
 }
 
@@ -437,7 +464,7 @@ function menuScreen(k) {
     <h2>${t.title}</h2>
     <button class="btn" data-go="${base}/jack">Silver / Gold / Super Jack</button>
     <button class="btn" data-go="${base}/jackpot">Jackpots</button>
-    <button class="btn" data-go="${base}/blackjack">Black Jack (3:2)</button>
+    <button class="btn" data-go="${base}/blackjack">Black Jack</button>
     <button class="btn" data-go="${base}/pairs">Super Pairs</button>
     <button class="btn" data-go="${base}/cards">Karten lesen</button>
     <button class="btn" data-go="${base}/timed">Karten lesen auf Zeit (${TIMED_SECONDS} s)</button>`;
@@ -548,6 +575,7 @@ function cardReadingScreen(k, timed) {
       body = `
         <p>Lies so viele Hände wie möglich in ${TIMED_SECONDS} Sekunden – mal Gast, mal Bank.</p>
         <p>Ass als 1 oder 11: z. B. 6 + A + 2 = 9/19. Die Bank steht ab 17.</p>
+        <p>Ass + Zehner: beim Gast Black Jack, bei der Bank Silver, Gold oder Super Jack.</p>
         ${rec ? `<p>Dein Rekord: ${rec} richtig</p>` : ""}
         <button class="btn" id="start">Start</button>`;
     } else if (phase === 2) {
@@ -568,7 +596,8 @@ function cardReadingScreen(k, timed) {
       body = status + hand + (entry ? `
         <div class="display" id="display"></div>
         <div class="pad">${["1", "2", "3", "4", "5", "6", "7", "8", "9", "/", "0", "⌫"].map((key) => `<button data-key="${key}">${key}</button>`).join("")}</div>
-        <p class="small">Ass als 1 oder 11: beide Werte mit / eingeben, z. B. 9/19</p>
+        <div class="names">${(reading.bank ? JACKS.map((j) => j.label) : ["Black Jack"]).map((n) => `<button data-name="${n}">${n}</button>`).join("")}</div>
+        <p class="small">Ass als 1 oder 11: beide Werte mit / eingeben, z. B. 9/19. Ass + Zehner: ${reading.bank ? "Silver, Gold oder Super Jack" : "Black Jack"} statt 21.</p>
         <button class="btn" id="check">Prüfen</button>
         ${timed && feedback ? `<p class="feedback ${wasRight ? "ok" : "bad"}" style="font-size:16px">${esc(feedback.split("\n")[0])}</p>` : ""}
       ` : `
@@ -588,6 +617,8 @@ function cardReadingScreen(k, timed) {
         else if (input.length < 5) input += key;
         updateDisplay();
       });
+      // Ass + Zehner wird nicht als 21 angesagt, sondern mit Namen
+      app.querySelectorAll("[data-name]").forEach((b) => b.onclick = () => { input = b.dataset.name; submit(); });
     }
   }
   render();
