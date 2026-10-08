@@ -195,7 +195,8 @@ function jackQuestion(table, right) {
   else do { lines = [0, 1, 2].filter(() => Math.random() < .5); } while (!lines.length);
   // Super-Hand gewinnt auch Gold und Silver, Gold-Hand auch Silver (separat ausgezahlt)
   const wins = lines.filter((l) => l <= hand);
-  const bet = betFor(table, right);
+  // Silver/Gold/Super Jack: je Linie ein Stück zum Tischminimum (5 €, 10 €, 20 €)
+  const bet = table.minBet;
   const total = wins.reduce((s, l) => s + bet * JACKS[l].quote, 0);
   const detail = wins.length ? wins.map((l) => `${JACKS[l].label} ${JACKS[l].quote}:1 × ${eur(bet)} = ${eur(bet * JACKS[l].quote)}`).join("\n")
     : "Keine der gesetzten Linien gewinnt.";
@@ -273,8 +274,15 @@ function jackpotQuestion(table) {
 /* ---------- Black Jack 3:2 ---------- */
 
 /** Black Jack Auszahlung (Hauptmenü, tischunabhängig): Einsätze 10 bis 1000 je nach Stufe. */
+const recentBlackjackBets = [];
+
 function blackjackQuestion(right) {
-  const bet = betFor({ minBet: 10, maxBet: 1000 }, right), win = bet * 1.5;
+  // Kein Einsatz, der unter den letzten 5 Aufgaben schon vorkam
+  let bet;
+  do { bet = betFor({ minBet: 10, maxBet: 1000 }, right); } while (recentBlackjackBets.includes(bet));
+  recentBlackjackBets.push(bet);
+  if (recentBlackjackBets.length > 5) recentBlackjackBets.shift();
+  const win = bet * 1.5;
   return {
     header: `Black Jack! Einsatz ${eur(bet)}: Wie hoch ist die Auszahlung?`,
     cards: [], answer: win, allowNoWin: true,
