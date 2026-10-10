@@ -1,7 +1,9 @@
 {
+  "id": "/blackjack-trainer/",
   "name": "Black Jack Trainer",
   "short_name": "BJ Trainer",
-  "start_url": "./",
+  "start_url": "/blackjack-trainer/",
+  "scope": "/blackjack-trainer/",
   "display": "standalone",
   "background_color": "#159346",
   "theme_color": "#159346",
