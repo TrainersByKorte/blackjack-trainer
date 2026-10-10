@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Black Jack Trainer</title>
-<meta name="theme-color" content="#2A9053">
+<meta name="theme-color" content="#159346">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -14,17 +14,15 @@
 <link rel="manifest" href="manifest.json">
 <style>
   :root {
-    --green: #2A9053;
+    --green: #159346;
     --blue: #022652;
-    --right: #B9F6CA;
-    --wrong: #FFCDD2;
     --red-suit: #C62828;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; min-height: 100%; }
   body {
     background: var(--green);
-    color: #fff;
+    color: #000; /* alle Texte schwarz, nur auf den blauen Schaltflächen weiß (Wunsch von Daniel) */
     font: 17px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     -webkit-tap-highlight-color: transparent;
   }
@@ -49,8 +47,8 @@
   h3 { margin: 0; font-size: 20px; }
   p { margin: 0; }
   .small { font-size: 13px; }
-  /* bleibt lesbar, wenn Text über dem Logo im Hintergrund liegt */
-  main p, main h3 { text-shadow: 0 1px 3px rgba(0, 0, 0, .9), 0 0 8px rgba(0, 0, 0, .6); }
+  /* leichter heller Schein: schwarze Schrift bleibt auch über dem Logo lesbar */
+  main p, main h3 { text-shadow: 0 0 6px rgba(255, 255, 255, .35); }
   button { font: inherit; cursor: pointer; }
   .btn {
     width: 100%; min-height: 48px; padding: 10px 16px;
@@ -58,25 +56,26 @@
     font-weight: 500;
   }
   .btn:active { filter: brightness(1.4); }
-  .btn.secondary { background: rgba(2, 38, 82, .3); border: 2px solid var(--blue); }
+  /* fast deckender blauer Grund: weiße bzw. rote Schrift bleibt auch über dem Logo lesbar */
+  .btn.secondary { background: rgba(2, 38, 82, .85); border: 2px solid var(--blue); }
+  .btn.nowin { color: #E53935; font-weight: 700; }
   .back {
-    align-self: flex-start; background: none; border: 0; color: #fff;
+    align-self: flex-start; background: none; border: 0; color: #000;
     padding: 8px 4px; font-weight: 500;
   }
   .spacer { height: 8px; }
-  .box { background: rgba(0, 0, 0, .25); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .box { background: rgba(255, 255, 255, .2); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
   .row { display: flex; justify-content: space-between; gap: 12px; }
   .row b { white-space: nowrap; }
   .feedback { font-size: 18px; font-weight: 600; white-space: pre-line; }
-  .ok { color: var(--right); }
-  .bad { color: var(--wrong); }
+  .ok { font-weight: 700; }
   input[type=text] {
-    width: 100%; font: inherit; font-size: 20px; color: #fff;
-    background: rgba(0, 0, 0, .15); border: 1px solid rgba(255, 255, 255, .7); border-radius: 6px;
+    width: 100%; font: inherit; font-size: 20px; color: #000;
+    background: rgba(255, 255, 255, .85); border: 1px solid rgba(0, 0, 0, .7); border-radius: 6px;
     padding: 14px 12px;
   }
-  input[type=text]:focus { outline: none; border: 2px solid #fff; }
-  input::placeholder { color: rgba(255, 255, 255, .55); }
+  input[type=text]:focus { outline: none; border: 2px solid #000; }
+  input::placeholder { color: rgba(0, 0, 0, .55); }
   /* Karten */
   .cards { display: flex; gap: 10px; flex-wrap: wrap; }
   .card {
@@ -91,10 +90,10 @@
   .bank { display: flex; gap: 6px; flex-wrap: wrap; }
   /* Zifferntastatur */
   .display {
-    background: rgba(0, 0, 0, .25); border-radius: 8px; padding: 12px;
+    background: rgba(255, 255, 255, .85); border-radius: 8px; padding: 12px;
     text-align: center; font-size: 28px; font-weight: 700; min-height: 62px;
   }
-  .display.empty { color: rgba(255, 255, 255, .5); }
+  .display.empty { color: rgba(0, 0, 0, .5); }
   .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .pad button {
     height: 56px; background: var(--blue); color: #fff; border: 0; border-radius: 8px;
@@ -107,7 +106,7 @@
   }
   .names button:active, .pad button:active { filter: brightness(1.5); }
   dialog {
-    background: #1E6B3E; color: #fff; border: 0; border-radius: 16px; padding: 20px; max-width: 320px;
+    background: #E8F5E9; color: #000; border: 0; border-radius: 16px; padding: 20px; max-width: 320px;
   }
   dialog::backdrop { background: rgba(0, 0, 0, .5); }
   dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
@@ -513,7 +512,7 @@ function exerciseScreen(back, title, jackpotMode, next) {
       ${feedback === null ? `
         <input type="text" id="answer" inputmode="decimal" autocomplete="off" placeholder="Auszahlung in €">
         <button class="btn" id="check">Prüfen</button>
-        ${q.allowNoWin ? `<button class="btn secondary" id="nowin">Kein Gewinn</button>` : ""}
+        ${q.allowNoWin ? `<button class="btn secondary nowin" id="nowin">Kein Gewinn</button>` : ""}
         ${jackpotMode ? `<button class="btn secondary" id="prog">Progressiver Jackpot</button>` : ""}
       ` : `
         <p class="feedback ${wasRight ? "ok" : "bad"}">${esc(feedback)}</p>
