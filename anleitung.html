@@ -6,7 +6,7 @@
 <title>Black Jack Trainer – Installieren</title>
 <link rel="icon" href="icon-192.png">
 <style>
-  :root { --green: #2A9053; --blue: #022652; }
+  :root { --green: #029736; --blue: #022652; }
   * { box-sizing: border-box; }
   body {
     margin: 0; background: #fff; color: #111;
@@ -27,7 +27,13 @@
   li:last-child { margin-bottom: 0; }
   .note { margin-top: 24px; font-size: 14px; color: #444; text-align: center; }
   @media (max-width: 560px) { .cols { grid-template-columns: 1fr; } }
-  @media print { .page { padding: 12mm 0; } }
+  /* Druck/PDF: alles auf eine A4-Seite */
+  @page { size: A4; margin: 12mm; }
+  @media print {
+    .page { padding: 0; }
+    .qr { width: 200px; height: 200px; margin: 16px auto 6px; }
+    .url { margin-bottom: 20px; }
+  }
 </style>
 </head>
 <body>

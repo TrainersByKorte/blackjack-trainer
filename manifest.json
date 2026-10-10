@@ -5,8 +5,8 @@
   "start_url": "/blackjack-trainer/",
   "scope": "/blackjack-trainer/",
   "display": "standalone",
-  "background_color": "#159346",
-  "theme_color": "#159346",
+  "background_color": "#029736",
+  "theme_color": "#029736",
   "lang": "de",
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
