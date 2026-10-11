@@ -164,11 +164,9 @@ function betFor({ minBet, maxBet }, right) {
     // Stufe 1: glatte Einsätze 10, 20, 30 … bis 100
     return rnd(Math.floor(Math.max(minBet, 10) / 10), Math.floor(Math.min(maxBet, 100) / 10)) * 10;
   }
-  // Stufe 2: krumme Einsätze in 5er-Schritten (115, 255 …) von 105 bis 1000; am 5€-Tisch 15 bis 95
-  const lo = maxBet > 100 ? 105 : 15, hi = Math.min(maxBet, 1000);
-  let b;
-  do { b = rnd(lo / 5, Math.floor(hi / 5)) * 5; } while (b % 10 === 0 && rnd(0, 3) !== 0);
-  return b;
+  // Stufe 2: Einsätze von 110 bis 1000 in 10er-Schritten (keine 105, 115 …); am 5€-Tisch krumme Einsätze 15 bis 95
+  if (maxBet > 100) return rnd(11, Math.floor(Math.min(maxBet, 1000) / 10)) * 10;
+  return rnd(3, 19) * 5;
 }
 
 /* ---------- Silver / Gold / Super Jack ---------- */
